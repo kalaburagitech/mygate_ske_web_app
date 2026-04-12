@@ -1,0 +1,108 @@
+﻿Starting project at D:\rahul_paid_projects\rahulsecurityapp\klb-security-new-mobile
+npx : PluginError: 
+Failed to resolve 
+plugin for module 
+"expo-router" 
+relative to "D:\rahul_
+paid_projects\rahulsec
+urityapp\klb-security-
+new-mobile". Do you 
+have node modules 
+installed?
+At line:1 char:1
++ npx expo start > 
+error2.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (PluginErro   
+ r: Fa...ules inst    
+alled?:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+PluginError: Failed 
+to resolve plugin for 
+module "expo-router" 
+relative to "D:\rahul_
+paid_projects\rahulsec
+urityapp\klb-security-
+new-mobile". Do you 
+have node modules 
+installed?
+    at resolvePluginFo
+rModule (D:\rahul_paid
+_projects\rahulsecurit
+yapp\klb-security-new-
+mobile\node_modules\@e
+xpo\config-plugins\bui
+ld\utils\plugin-resolv
+er.js:96:9)
+    at resolveConfigPl
+uginFunctionWithInfo (
+D:\rahul_paid_projects
+\rahulsecurityapp\klb-
+security-new-mobile\no
+de_modules\@expo\confi
+g-plugins\build\utils\
+plugin-resolver.js:145
+:7)
+    at resolveConfigPl
+uginFunction (D:\rahul
+_paid_projects\rahulse
+curityapp\klb-security
+-new-mobile\node_modul
+es\@expo\config-plugin
+s\build\utils\plugin-r
+esolver.js:136:7)
+    at 
+withStaticPlugin (D:\r
+ahul_paid_projects\rah
+ulsecurityapp\klb-secu
+rity-new-mobile\node_m
+odules\@expo\config-pl
+ugins\build\plugins\wi
+thStaticPlugin.js:85:7
+0)
+    at D:\rahul_paid_p
+rojects\rahulsecuritya
+pp\klb-security-new-mo
+bile\node_modules\@exp
+o\config-plugins\build
+\plugins\withPlugins.j
+s:30:84
+    at Array.reduce 
+(<anonymous>)
+    at withPlugins (D:
+\rahul_paid_projects\r
+ahulsecurityapp\klb-se
+curity-new-mobile\node
+_modules\@expo\config-
+plugins\build\plugins\
+withPlugins.js:30:18)
+    at 
+withConfigPlugins (D:\
+rahul_paid_projects\ra
+hulsecurityapp\klb-sec
+urity-new-mobile\node_
+modules\@expo\config\b
+uild\plugins\withConfi
+gPlugins.js:35:47)
+    at 
+fillAndReturnConfig (D
+:\rahul_paid_projects\
+rahulsecurityapp\klb-s
+ecurity-new-mobile\nod
+e_modules\@expo\config
+\build\Config.js:236:7
+8)
+    at getConfig (D:\r
+ahul_paid_projects\rah
+ulsecurityapp\klb-secu
+rity-new-mobile\node_m
+odules\@expo\config\bu
+ild\Config.js:293:10)
+

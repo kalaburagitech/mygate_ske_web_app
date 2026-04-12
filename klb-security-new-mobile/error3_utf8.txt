@@ -1,0 +1,76 @@
+﻿Starting project at D:\rahul_paid_projects\rahulsecurityapp\klb-security-new-mobile
+npx : Error [ERR_UNSUP
+PORTED_ESM_URL_SCHEME]
+: Error loading Metro 
+config at: D:\rahul_pa
+id_projects\rahulsecur
+ityapp\klb-security-ne
+w-mobile\metro.config.
+js
+At line:1 char:1
++ npx expo start 
+--clear > error3.txt 
+2>&1 ; Get-Content 
+error3.txt -Ra ...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (Error [ERR   
+ _UNSU...metro.con    
+fig.js:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+Only URLs with a 
+scheme in: file, 
+data, and node are 
+supported by the 
+default ESM loader. 
+On Windows, absolute 
+paths must be valid 
+file:// URLs. 
+Received protocol 'd:'
+Error: Only URLs with 
+a scheme in: file, 
+data, and node are 
+supported by the 
+default ESM loader. 
+On Windows, absolute 
+paths must be valid 
+file:// URLs. 
+Received protocol 'd:'
+    at throwIfUnsuppor
+tedURLScheme (node:int
+ernal/modules/esm/load
+:241:11)
+    at defaultLoad (no
+de:internal/modules/es
+m/load:132:3)
+    at 
+ModuleLoader.load (nod
+e:internal/modules/esm
+/loader:658:12)
+    at ModuleLoader.lo
+adAndTranslate (node:i
+nternal/modules/esm/lo
+ader:477:56)
+    at ModuleLoader.#c
+reateModuleJob (node:i
+nternal/modules/esm/lo
+ader:501:36)
+    at ModuleLoader.#g
+etJobFromResolveResult
+ (node:internal/module
+s/esm/loader:269:34)
+    at ModuleLoader.ge
+tModuleJobForImport (n
+ode:internal/modules/e
+sm/loader:237:41)
+    at 
+ModuleLoader.import (n
+ode:internal/modules/e
+sm/loader:539:23)
+

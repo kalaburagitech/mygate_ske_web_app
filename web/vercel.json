@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/getotp",
+      "destination": "/api/getotp"
+    },
+    {
+      "source": "/verify",
+      "destination": "/api/verify"
+    }
+  ]
+}

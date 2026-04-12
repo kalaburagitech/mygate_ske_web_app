@@ -1,0 +1,10 @@
+﻿
+InterfaceAlias        
+--------------        
+Wi-Fi 3               
+Wi-Fi 2               
+Wi-Fi                 
+Ethernet 2            
+Loopback Pseudo-Int...
+
+
