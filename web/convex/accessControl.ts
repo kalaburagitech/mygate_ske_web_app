@@ -19,24 +19,10 @@ export async function getAuthorizedSiteIds(
   const isRestricted = roles.includes("Client") || roles.includes("SO") || roles.includes("NEW_USER");
   const isOwner = roles.includes("Owner") || roles.includes("Deployment Manager") || roles.includes("Manager") || roles.includes("Visiting Officer");
 
-  // For Admins/Owners, they see everything in their org tree by default.
-  // Prioritize Admin permissions over restricted roles if both exist.
+  // For Admins/Owners/Deployment Managers, they see everything in their organization tree.
+  // We return null to indicate unrestricted access within the current query context.
   if (isOwner) {
-    const orgIds = [user.organizationId];
-    // Find children
-    const childOrgs = await ctx.db.query("organizations")
-      .withIndex("by_parent_org", (q: any) => q.eq("parentOrganizationId", user.organizationId))
-      .collect();
-    childOrgs.forEach(o => orgIds.push(o._id));
-
-    const allSiteIds: Id<"sites">[] = [];
-    for (const oid of orgIds) {
-      const sites = await ctx.db.query("sites")
-        .withIndex("by_org", q => q.eq("organizationId", oid))
-        .collect();
-      sites.forEach(s => allSiteIds.push(s._id));
-    }
-    return allSiteIds;
+    return null;
   }
 
   // Restricted Roles (Client/SO) or Owners with restricted access

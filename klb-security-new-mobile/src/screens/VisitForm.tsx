@@ -259,7 +259,8 @@ export default function VisitForm({ route, navigation }: any) {
             showError('Required', 'Add a note or at least one photo.');
             return;
         }
-        if (type !== 'Vehicle' && !targetUserId) {
+        const isOperational = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'].includes(type || '');
+        if (type !== 'Vehicle' && !isOperational && !targetUserId) {
             showError('Required', 'Please select an approving client.');
             return;
         }
@@ -352,6 +353,8 @@ export default function VisitForm({ route, navigation }: any) {
 
     const typeIconColor =
         type === 'Trainer' ? '#60a5fa' : type === 'SiteCheckNight' ? '#e2e8f0' : type === 'SiteCheckDay' ? '#fbbf24' : '#94a3b8';
+
+    const isOfficerVisit = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'].includes(type || '');
 
     return (
         <SafeAreaView style={styles.container}>
@@ -475,102 +478,61 @@ export default function VisitForm({ route, navigation }: any) {
                     />
                 </View>
 
-                <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Visitor / Vehicle Details</Text>
-                    
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Visitor Name</Text>
-                        <TextInput
-                            placeholder="Full name"
-                            placeholderTextColor="#475569"
-                            style={styles.innerInput}
-                            value={visitorName}
-                            onChangeText={setVisitorName}
-                        />
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                        <View style={{ flex: 1.5 }}>
-                            <Text style={styles.inputLabel}>Vehicle Number (Opt)</Text>
+                {!isOfficerVisit && (
+                    <View style={styles.card}>
+                        <Text style={styles.sectionTitle}>Visitor / Vehicle Details</Text>
+                        
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Visitor Name</Text>
                             <TextInput
-                                placeholder="ABC-123"
+                                placeholder="Full name"
                                 placeholderTextColor="#475569"
                                 style={styles.innerInput}
-                                value={vehicleNumber}
-                                onChangeText={setVehicleNumber}
-                                autoCapitalize="characters"
+                                value={visitorName}
+                                onChangeText={setVisitorName}
                             />
                         </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.inputLabel}>People</Text>
-                            <TextInput
-                                placeholder="1"
-                                placeholderTextColor="#475569"
-                                style={styles.innerInput}
-                                value={numberOfPeople}
-                                onChangeText={setNumberOfPeople}
-                                keyboardType="numeric"
-                            />
-                        </View>
-                    </View>
 
-                    {type !== 'Vehicle' && (
-                        <View style={{ marginTop: 12 }}>
-                            <Text style={styles.inputLabel}>Approving Client</Text>
-                            <TouchableOpacity 
-                                style={styles.innerInput}
-                                onPress={() => setShowClientPicker(true)}
-                            >
-                                <Text style={{ color: targetUserId ? 'white' : '#475569' }}>
-                                    {targetUserId ? clients.find(c => c._id === targetUserId)?.name || 'Selected Client' : 'Select Approver'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-
-                    {showClientPicker && (
-                        <Modal visible={showClientPicker} transparent animationType="slide">
-                            <View style={styles.modalOverlay}>
-                                <View style={styles.modalContent}>
-                                    <View style={styles.modalHeader}>
-                                        <Text style={styles.modalTitle}>Select Client</Text>
-                                        <TouchableOpacity onPress={() => setShowClientPicker(false)}>
-                                            <Text style={styles.modalClose}>Done</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    <ScrollView style={{ maxHeight: 400 }}>
-                                        {clients.map((client) => (
-                                            <TouchableOpacity 
-                                                key={client._id}
-                                                style={[
-                                                    styles.regionOption,
-                                                    targetUserId === client._id && styles.regionOptionSelected
-                                                ]}
-                                                onPress={() => {
-                                                    setTargetUserId(client._id === targetUserId ? null : client._id);
-                                                    setShowClientPicker(false);
-                                                }}
-                                            >
-                                                <Text style={[
-                                                    styles.regionOptionText,
-                                                    targetUserId === client._id && styles.regionOptionTextSelected
-                                                ]}>
-                                                    {client.name}
-                                                </Text>
-                                                {targetUserId === client._id && <Check color="#3b82f6" size={18} />}
-                                            </TouchableOpacity>
-                                        ))}
-                                        {clients.length === 0 && (
-                                            <Text style={{ padding: 20, color: '#64748b', textAlign: 'center' }}>
-                                                No clients found.
-                                            </Text>
-                                        )}
-                                    </ScrollView>
-                                </View>
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                            <View style={{ flex: 1.5 }}>
+                                <Text style={styles.inputLabel}>Vehicle Number (Opt)</Text>
+                                <TextInput
+                                    placeholder="ABC-123"
+                                    placeholderTextColor="#475569"
+                                    style={styles.innerInput}
+                                    value={vehicleNumber}
+                                    onChangeText={setVehicleNumber}
+                                    autoCapitalize="characters"
+                                />
                             </View>
-                        </Modal>
-                    )}
-                </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.inputLabel}>People</Text>
+                                <TextInput
+                                    placeholder="1"
+                                    placeholderTextColor="#475569"
+                                    style={styles.innerInput}
+                                    value={numberOfPeople}
+                                    onChangeText={setNumberOfPeople}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                        </View>
+
+                        {type !== 'Vehicle' && !isOfficerVisit && (
+                            <View style={{ marginTop: 12 }}>
+                                <Text style={styles.inputLabel}>Approving Client</Text>
+                                <TouchableOpacity 
+                                    style={styles.innerInput}
+                                    onPress={() => setShowClientPicker(true)}
+                                >
+                                    <Text style={{ color: targetUserId ? 'white' : '#475569' }}>
+                                        {targetUserId ? clients.find(c => c._id === targetUserId)?.name || 'Selected Client' : 'Select Approver'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                )}
 
                 <View style={[styles.card, styles.inputSection]}>
                     <Text style={styles.sectionTitle}>Notes</Text>
@@ -643,7 +605,7 @@ export default function VisitForm({ route, navigation }: any) {
                     ) : (
                         <>
                             <CheckCircle color="white" size={22} />
-                            <Text style={styles.submitBtnText}>Check in at site</Text>
+                            <Text style={styles.submitBtnText}>{isOfficerVisit ? 'Submit Report' : 'Check in at site'}</Text>
                         </>
                     )}
                 </TouchableOpacity>
@@ -667,6 +629,49 @@ export default function VisitForm({ route, navigation }: any) {
                     ) : null}
                 </Pressable>
             </Modal>
+
+            {showClientPicker && (
+                <Modal visible={showClientPicker} transparent animationType="slide">
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Select Client</Text>
+                                <TouchableOpacity onPress={() => setShowClientPicker(false)}>
+                                    <Text style={styles.modalClose}>Done</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView style={{ maxHeight: 400 }}>
+                                {clients.map((client) => (
+                                    <TouchableOpacity 
+                                        key={client._id}
+                                        style={[
+                                            styles.regionOption,
+                                            targetUserId === client._id && styles.regionOptionSelected
+                                        ]}
+                                        onPress={() => {
+                                            setTargetUserId(client._id === targetUserId ? null : client._id);
+                                            setShowClientPicker(false);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.regionOptionText,
+                                            targetUserId === client._id && styles.regionOptionTextSelected
+                                        ]}>
+                                            {client.name}
+                                        </Text>
+                                        {targetUserId === client._id && <Check color="#3b82f6" size={18} />}
+                                    </TouchableOpacity>
+                                ))}
+                                {clients.length === 0 && (
+                                    <Text style={{ padding: 20, color: '#64748b', textAlign: 'center' }}>
+                                        No clients found for this site.
+                                    </Text>
+                                )}
+                            </ScrollView>
+                        </View>
+                    </View>
+                </Modal>
+            )}
         </SafeAreaView>
     );
 }
@@ -781,6 +786,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
     },
     thumbLoadingTxt: { color: '#fff', fontSize: 22, fontWeight: '800' },
     checkCorner: {

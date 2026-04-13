@@ -7,6 +7,7 @@ import SiteManagement from "./pages/sites/SiteManagement";
 import Patrol from "./pages/points";
 import PatrolLogs from "./pages/points/PatrolLogs";
 import VisitLogs from "./pages/logs/VisitLogs";
+import OfficerLogs from "./pages/logs/OfficerLogs";
 import IssueTracker from "./pages/issues/IssueTracker";
 import PatrolPoints from "./pages/points/PatrolPoints";
 import Settings from "./pages/settings/Settings";
@@ -155,6 +156,14 @@ function App() {
                         element={
                           <ProtectedRoute permission="visitLogs">
                             <VisitLogs />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/officer-visits"
+                        element={
+                          <ProtectedRoute permission="visitLogs">
+                            <OfficerLogs />
                           </ProtectedRoute>
                         }
                       />

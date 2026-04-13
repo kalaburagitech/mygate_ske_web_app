@@ -273,3 +273,68 @@ export const getSessionDetail = query({
         };
     },
 });
+
+export const listForSiteSince = query({
+    args: {
+        siteId: v.id("sites"),
+        since: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const sessions = await ctx.db
+            .query("patrolSessions")
+            .withIndex("by_site", (q) => q.eq("siteId", args.siteId))
+            .filter((q) => q.gte(q.field("startTime"), args.since))
+            .collect();
+
+        // Sort by startTime descending
+        sessions.sort((a, b) => b.startTime - a.startTime);
+
+        const rows = await Promise.all(
+            sessions.map(async (s) => {
+                const logs = await ctx.db
+                    .query("patrolLogs")
+                    .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+                    .collect();
+
+                // If it's empty and completed, we might want to skip or show it anyway.
+                // Existing rounds logic skips sessions with no scans.
+                if (logs.length === 0 && s.status === "completed") return null;
+
+                const user = await ctx.db.get(s.guardId);
+                const site = await ctx.db.get(s.siteId);
+                
+                const pointNames: string[] = [];
+                const sortedLogs = logs.sort((a, b) => a.createdAt - b.createdAt);
+                for (const log of sortedLogs) {
+                    if (log.patrolPointId) {
+                        const p = await ctx.db.get(log.patrolPointId);
+                        if (p) pointNames.push(p.name);
+                    }
+                }
+
+                const endTime = s.endTime ?? Date.now();
+                const durationMs = endTime - s.startTime;
+                const totalDistanceM = logs.reduce((acc, l) => acc + l.distance, 0);
+
+                return {
+                    sessionId: s._id,
+                    siteId: s.siteId,
+                    siteName: site?.name ?? "Site",
+                    regionId: site?.regionId,
+                    city: site?.city,
+                    guardName: user?.name ?? "Unknown",
+                    guardEmpId: user?.id ?? user?.mobileNumber ?? "",
+                    startTime: s.startTime,
+                    endTime: s.endTime,
+                    status: s.status,
+                    scanCount: logs.length,
+                    pointTrail: pointNames.join(" → "),
+                    durationMs,
+                    totalDistanceM: Math.round(totalDistanceM * 10) / 10,
+                };
+            })
+        );
+
+        return rows.filter((r): r is NonNullable<typeof r> => r != null);
+    },
+});

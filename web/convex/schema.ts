@@ -261,7 +261,6 @@ export default defineSchema({
         organizationId: v.optional(v.id("organizations")),
         siteId: v.optional(v.id("sites")),
         siteName: v.optional(v.string()),
-        siteName: v.optional(v.string()),
         shiftName: v.optional(v.string()),
         imageId: v.optional(v.string()),
         approvalStatus: v.optional(

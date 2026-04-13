@@ -11,6 +11,7 @@ import {
     Building2,
     Globe,
     Calendar,
+    ShieldCheck,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
@@ -32,7 +33,8 @@ const navItems = [
     // ✅ SINGLE PATROL TAB
     { name: "Patrol Reports", icon: QrCode, href: "/patrol", permission: "patrolLogs" },
 
-    { name: "Visits", icon: ClipboardList, href: "/visit-logs", permission: "visitLogs" },
+    { name: "Visitors", icon: Users, href: "/visit-logs", permission: "visitLogs" },
+    { name: "Officer Visits", icon: ShieldCheck, href: "/officer-visits", permission: "visitLogs" },
     { name: "Attendance", icon: Calendar, href: "/attendance", permission: "attendance" },
     { name: "Issue Tracker", icon: ShieldAlert, href: "/issues", permission: "issues" },
     { name: "Analytics", icon: BarChart3, href: "/analytics", permission: "analytics" },
@@ -77,6 +79,17 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         return true;
     });
 
+    const pendingCount = useQuery(
+        api.logs.getVisitorStatusCounts,
+        currentUser?.organizationId
+            ? {
+                organizationId: currentUser.organizationId,
+                requestingUserId: currentUser?._id,
+                excludeOfficerVisits: true,
+            }
+            : "skip"
+    )?.pending ?? 0;
+
     return (
         <>
             {isOpen ? (
@@ -107,14 +120,21 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                             to={item.href}
                             onClick={onClose}
                             className={cn(
-                                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all",
+                                "flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-all",
                                 isActive
                                     ? "bg-primary text-white"
                                     : "text-gray-400 hover:text-white hover:bg-white/5"
                             )}
                         >
-                            <item.icon className="w-4 h-4" />
-                            {item.name}
+                            <div className="flex items-center gap-3">
+                                <item.icon className="w-4 h-4" />
+                                {item.name}
+                            </div>
+                            {item.name === "Visitors" && pendingCount > 0 && (
+                                <span className="bg-amber-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
+                                    {pendingCount}
+                                </span>
+                            )}
                         </NavLink>
                     );
                 })}

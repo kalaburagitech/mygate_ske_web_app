@@ -285,6 +285,7 @@ export const getDailyOfficerCoverage = query({
                     userRole: userRoleLabel(user, "Officer"),
                     sites: new Set<string>(),
                     lastVisit: 0,
+                    visitTypes: new Set<string>(),
                 });
             }
 
@@ -292,6 +293,9 @@ export const getDailyOfficerCoverage = query({
             const site = await ctx.db.get(log.siteId);
             if (site) {
                 userData.sites.add(site.name);
+            }
+            if (log.visitType) {
+                userData.visitTypes.add(log.visitType);
             }
             const logTime = (log as any).createdAt || (log as any).timestamp || 0;
             if (logTime > userData.lastVisit) {
@@ -302,7 +306,8 @@ export const getDailyOfficerCoverage = query({
         return Array.from(userMap.values()).map(u => ({
             ...u,
             sites: Array.from(u.sites),
-            siteCount: u.sites.size
+            siteCount: u.sites.size,
+            visitTypes: Array.from(u.visitTypes)
         })).sort((a, b) => b.lastVisit - a.lastVisit);
     },
 });
@@ -368,12 +373,29 @@ export const createVisitLog = mutation({
               ? [args.imageId]
               : [];
         const primaryImage = ids[0] ?? args.imageId;
+        const user = await ctx.db.get(args.userId);
+        const roles = user?.roles || [];
+        const isOfficerRole = roles.some(r => 
+            ["Visiting Officer", "Deployment Manager", "Owner", "Manager"].includes(r)
+        );
+        
+        const isOperationalType = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'].includes(args.visitType || '');
+        const isVehicle = args.visitType === 'Vehicle';
+        
+        // Auto-approve if it's a vehicle OR if it's an operational visit by an authorized role
+        const isAutoApprove = isVehicle || isOperationalType || (isOfficerRole && args.visitType !== 'General');
+        
+        // If it's an officer visit but marked 'General', we still auto-approve if they are one of the high roles
+        const finalAutoApprove = isAutoApprove || (isOfficerRole && !args.visitorName && !args.vehicleNumber);
+
+        const now = Date.now();
         const logId = await ctx.db.insert("visitLogs", {
             ...logData,
             imageId: primaryImage,
             imageIds: ids.length ? ids : undefined,
-            status: args.visitType === 'Vehicle' ? "inside" : "pending",
-            createdAt: Date.now(),
+            status: isOperationalType ? "exited" : (finalAutoApprove ? "approved" : "pending"),
+            createdAt: now,
+            checkOutAt: isOperationalType ? now : undefined,
         });
 
         if (issueDetails) {
@@ -418,19 +440,27 @@ export const getVisitorsByStatus = query({
                 v.literal("exited")
             )
         ),
-        requestingUserId: v.optional(v.id("users"))
+        requestingUserId: v.optional(v.id("users")),
+        excludeOfficerVisits: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
+        const officerVisitTypes = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'];
         const authorizedSiteIds = await getAuthorizedSiteIds(ctx, args.requestingUserId);
+        // Fetch more logs to ensure we find specialized officer visits even with high visitor traffic
         const logs = await ctx.db
             .query("visitLogs")
             .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId as any))
             .order("desc")
-            .collect();
+            .take(50);
 
         const filtered = logs.filter((log: any) => {
             const allowed = !authorizedSiteIds || authorizedSiteIds.includes(log.siteId);
             if (!allowed) return false;
+
+            if (args.excludeOfficerVisits && officerVisitTypes.includes(log.visitType || '')) {
+                return false;
+            }
+
             const status = (log.status as VisitorStatus | undefined) || "pending";
             if (!args.status || args.status === "all") return true;
             return status === args.status;
@@ -461,9 +491,11 @@ export const getVisitorsByStatus = query({
 export const getVisitorStatusCounts = query({
     args: {
         organizationId: v.id("organizations"),
-        requestingUserId: v.optional(v.id("users"))
+        requestingUserId: v.optional(v.id("users")),
+        excludeOfficerVisits: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
+        const officerVisitTypes = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'];
         const authorizedSiteIds = await getAuthorizedSiteIds(ctx, args.requestingUserId);
         const logs = await ctx.db
             .query("visitLogs")
@@ -481,6 +513,11 @@ export const getVisitorStatusCounts = query({
 
         for (const log of logs) {
             if (authorizedSiteIds && !authorizedSiteIds.includes(log.siteId)) continue;
+            
+            if (args.excludeOfficerVisits && officerVisitTypes.includes(log.visitType || '')) {
+                continue;
+            }
+
             counts.all += 1;
             const status = ((log.status as VisitorStatus | undefined) || "pending") as VisitorStatus;
             counts[status] += 1;
@@ -1133,5 +1170,315 @@ export const countIssuesByOrg = query({
         const issuesPromises = filtered.map(siteId => ctx.db.query("issues").withIndex("by_site", (q:any) => q.eq("siteId", siteId)).collect());
         const issuesResults = await Promise.all(issuesPromises);
         return issuesResults.flat().length;
+    },
+});
+
+export const listVisitLogsByUser = query({
+    args: {
+        userId: v.id("users"),
+        since: v.optional(v.number()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        let visitLogs = await ctx.db
+            .query("visitLogs")
+            .withIndex("by_user_created", (q) => q.eq("userId", args.userId))
+            .order("desc")
+            .collect();
+
+        // Filter by 'since' if provided
+        if (args.since) {
+            visitLogs = visitLogs.filter(l => (l.createdAt ?? (l as any)._creationTime) > (args.since ?? 0));
+        }
+
+        // Apply limit
+        const limit = args.limit ?? 50;
+        const slicedLogs = visitLogs.slice(0, limit);
+
+        return await Promise.all(
+            slicedLogs.map(async (log) => {
+                const site = await ctx.db.get(log.siteId);
+                const user = await ctx.db.get(log.userId);
+                
+                // Resolve images
+                const imageIds = (log.imageIds as string[] | undefined) ?? (log.imageId ? [log.imageId] : []);
+                const imageUrls = await Promise.all(
+                    imageIds.map(async (id) => {
+                        try {
+                            return await ctx.storage.getUrl(id as any);
+                        } catch {
+                            return null;
+                        }
+                    })
+                );
+
+                return {
+                    ...log,
+                    siteName: site?.name || "Unknown Site",
+                    userName: user?.name || "Me",
+                    userRole: userRoleLabel(user, "SO"),
+                    imageUrls: imageUrls.filter(Boolean) as string[],
+                    imageUrl: imageUrls[0] ?? null,
+                };
+            })
+        );
+    },
+});
+export const listOperationalActivityStream = query({
+    args: {
+        organizationId: v.id("organizations"),
+        requestingUserId: v.optional(v.id("users")),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const authorizedSiteIds = await getAuthorizedSiteIds(ctx, args.requestingUserId);
+        const officerVisitTypes = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'];
+        
+        let logs = await ctx.db
+            .query("visitLogs")
+            .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId as any))
+            .order("desc")
+            .collect();
+
+        // Filter for specialized visits and authorized sites
+        const filtered = logs.filter((log: any) => {
+            const isAuthorized = !authorizedSiteIds || authorizedSiteIds.includes(log.siteId);
+            const isOperational = officerVisitTypes.includes(log.visitType || '');
+            return isAuthorized && isOperational;
+        }).slice(0, args.limit || 20);
+
+        return await Promise.all(
+            filtered.map(async (log) => {
+                const user = await ctx.db.get(log.userId);
+                const site = await ctx.db.get(log.siteId);
+                const imageUrls = await visitLogImageUrls(ctx, log);
+                
+                return {
+                    ...log,
+                    userName: user?.name || "Unknown",
+                    userRole: userRoleLabel(user, "Officer"),
+                    siteName: site?.name || "Unknown",
+                    imageUrl: imageUrls[0] ?? null,
+                    imageUrls,
+                };
+            })
+        );
+    },
+});
+
+export const getVisitingTeamStats = query({
+    args: {
+        organizationId: v.id("organizations"),
+        requestingUserId: v.optional(v.id("users")),
+        regionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const authorizedSiteIds = await getAuthorizedSiteIds(ctx, args.requestingUserId);
+        const officerRoles = ["Visiting Officer", "Deployment Manager", "Owner", "Manager"];
+        
+        // 1. Get Officers
+        const allUsers = await ctx.db
+            .query("users")
+            .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId as any))
+            .collect();
+
+        const officers = allUsers.filter(u => {
+            if (u.status === "inactive") return false;
+            const hasRole = (u.roles || []).some(r => officerRoles.includes(r));
+            const matchesRegion = !args.regionId || u.regionId === args.regionId;
+            return hasRole && matchesRegion;
+        });
+
+        // 2. Prep Date Range (Last 30 days)
+        const now = Date.now();
+        const cutoff30 = now - (30 * 24 * 60 * 60 * 1000);
+        
+        // Day Map helper
+        const getDayKey = (ts: number) => {
+            const d = new Date(ts);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        };
+
+        const weekKeys = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setHours(0,0,0,0);
+            d.setDate(d.getDate() - (6 - i));
+            return getDayKey(d.getTime());
+        });
+
+        const formatDuration = (ms: number) => {
+            if (ms <= 0) return "0m";
+            const totalMin = Math.round(ms / 60000);
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            if (h <= 0) return `${m}m`;
+            if (m === 0) return `${h}h`;
+            return `${h}h ${m}m`;
+        };
+
+        // 3. Get Logs and aggregate
+        const results = await Promise.all(officers.map(async (u) => {
+            const logs = await ctx.db.query("visitLogs")
+                .withIndex("by_user_created", (q: any) => q.eq("userId", u._id).gte("createdAt", cutoff30))
+                .collect();
+            
+            // 7-day activity pulse
+            const weekCounts = weekKeys.map(key => 
+                logs.filter(l => getDayKey(l.createdAt) === key).length
+            );
+
+            // 30-day stats
+            let durationMs = 0;
+            logs.forEach(l => {
+                if (l.checkOutAt && l.checkOutAt > l.createdAt) {
+                    durationMs += (l.checkOutAt - l.createdAt);
+                }
+            });
+
+            return {
+                _id: u._id,
+                name: u.name || "Unknown",
+                roles: u.roles || [],
+                weekCounts,
+                visits30: logs.length,
+                duration30Label: formatDuration(durationMs)
+            };
+        }));
+        
+        return results.sort((a, b) => b.visits30 - a.visits30);
+    },
+});
+
+export const getMonthlySiteCoverageMatrix = query({
+    args: {
+        organizationId: v.id("organizations"),
+        requestingUserId: v.optional(v.id("users")),
+        regionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const authorizedSiteIds = await getAuthorizedSiteIds(ctx, args.requestingUserId);
+        const officerVisitTypes = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'];
+        
+        // 1. Get Sites
+        const sites = await ctx.db
+            .query("sites")
+            .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId as any))
+            .collect();
+
+        const filteredSites = sites.filter(s => {
+            if (args.regionId && s.regionId !== args.regionId) return false;
+            if (authorizedSiteIds && !authorizedSiteIds.includes(s._id)) return false;
+            return true;
+        });
+
+        // 2. Get Logs for last 30 days
+        const now = Date.now();
+        const cutoff30 = now - (30 * 24 * 60 * 60 * 1000);
+        
+        const logs = await ctx.db
+            .query("visitLogs")
+            .withIndex("by_org_created", (q: any) => q.eq("organizationId", args.organizationId as any).gte("createdAt", cutoff30))
+            .collect();
+
+        const operationalLogs = logs.filter(l => officerVisitTypes.includes(l.visitType || ''));
+
+        // 3. Build Matrix Keys (Last 30 days)
+        const getDayKey = (ts: number) => {
+            const d = new Date(ts);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        };
+
+        const dayKeys = Array.from({ length: 30 }, (_, i) => {
+            const d = new Date();
+            d.setHours(0,0,0,0);
+            d.setDate(d.getDate() - (29 - i));
+            return {
+                key: getDayKey(d.getTime()),
+                dayNum: d.getDate(),
+                isToday: d.toDateString() === new Date().toDateString()
+            };
+        });
+
+        // 4. Map to Sites
+        const matrix = filteredSites.map(site => {
+            const siteLogs = operationalLogs.filter(l => l.siteId === site._id);
+            
+            const dailyData = dayKeys.map(day => {
+                const logsForDay = siteLogs.filter(l => getDayKey(l.createdAt) === day.key);
+                return {
+                    ...day,
+                    types: Array.from(new Set(logsForDay.map(l => l.visitType).filter(Boolean)))
+                };
+            });
+
+            return {
+                _id: site._id,
+                name: site.name,
+                regionId: site.regionId,
+                city: site.city,
+                dailyData
+            };
+        });
+
+        return {
+            dayKeys,
+            matrix
+        };
+    },
+});
+
+export const listOfficerVisitLogs = query({
+    args: {
+        organizationId: v.id("organizations"),
+        siteId: v.optional(v.id("sites")),
+        regionId: v.optional(v.string()),
+        city: v.optional(v.string()),
+        requestingUserId: v.optional(v.id("users")),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const authorizedSiteIds = await getAuthorizedSiteIds(ctx, args.requestingUserId);
+        const officerVisitTypes = ['SiteCheckDay', 'SiteCheckNight', 'Trainer'];
+        
+        // Use by_org_created to scan for recent logs
+        // Scan a larger batch (e.g. 500) to find enough officer visits
+        const scanLimit = 1000; 
+        const logs = await ctx.db
+            .query("visitLogs")
+            .withIndex("by_org_created", (q: any) => q.eq("organizationId", args.organizationId))
+            .order("desc")
+            .take(scanLimit);
+
+        const filtered = logs.filter((log: any) => {
+            // 1. Authorized sites check
+            const isAuthorized = !authorizedSiteIds || authorizedSiteIds.includes(log.siteId);
+            if (!isAuthorized) return false;
+
+            // 2. Specialized visit check
+            const isOperational = officerVisitTypes.includes(log.visitType || '');
+            if (!isOperational) return false;
+
+            // 3. Site-specific filter (if provided)
+            if (args.siteId && log.siteId !== args.siteId) return false;
+
+            return true;
+        }).slice(0, args.limit || 100);
+
+        return await Promise.all(
+            filtered.map(async (log) => {
+                const user = await ctx.db.get(log.userId);
+                const site = await ctx.db.get(log.siteId);
+                const imageUrls = await visitLogImageUrls(ctx, log);
+                
+                return {
+                    ...log,
+                    userName: user?.name || "Unknown",
+                    userRole: userRoleLabel(user, "Officer"),
+                    siteName: site?.name || "Unknown",
+                    imageUrl: imageUrls[0] ?? null,
+                    imageUrls,
+                };
+            })
+        );
     },
 });
